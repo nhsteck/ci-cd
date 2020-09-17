@@ -1,0 +1,57 @@
+cache:
+
+before_script:
+  - whoami && pwd && date && go version
+  - "export APP_ROOT=`pwd`"
+  - echo $DOCKER_REGISTRY_SERVER
+  - echo $DOCKER_REGISTRY_JSON_KEY | base64 -d > account.json
+  - "export CI_PROJECT_VERSION=`echo $CI_COMMIT_REF_NAME | cut -d'-' -f 2`"
+
+after_script:
+
+stages:
+  - build
+  - test
+  - docker-build
+  - docker-release
+
+build:
+  stage: build
+  script:
+    - date
+    - cd $APP_ROOT && go build -o server
+  tags:
+    - golang
+
+test:
+  stage: test
+  script:
+    - date
+    - cd $APP_ROOT && go test main/test
+  tags:
+    - golang
+  only:
+    - /^test-.*$/
+
+docker-build:
+  stage: docker-build
+  script:
+    - date
+    - cd $APP_ROOT && docker build -t $DOCKER_REGISTRY_SERVER/$CI_PROJECT_NAME:$CI_PROJECT_VERSION .
+  tags:
+    - golang
+  only:
+    - /^test-.*$/
+
+docker-release:
+  stage: docker-release
+  script:
+    - date
+    - docker login -u _json_key --password-stdin https://asia.gcr.io < account.json
+    - docker tag $DOCKER_REGISTRY_SERVER/$CI_PROJECT_NAME:$CI_PROJECT_VERSION $DOCKER_REGISTRY_SERVER/$CI_PROJECT_NAME:$CI_PROJECT_VERSION-test
+    - docker push $DOCKER_REGISTRY_SERVER/$CI_PROJECT_NAME:$CI_PROJECT_VERSION-test
+  tags:
+    - golang
+  only:
+    - /^test-.*$/
+  when: manual
